@@ -2,7 +2,7 @@ import json
 import requests
 import os
 
-def get_battery_soc(header: dict, battery_number: str,  timeout: int = 15):
+def get_battery_voltage(header: dict, battery_number: str,  timeout: int = 15):
     
     DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
     if DEMO_MODE:
@@ -28,7 +28,7 @@ def get_battery_soc(header: dict, battery_number: str,  timeout: int = 15):
 
     try:
         bms = json.loads(json_str) #convert json string to dict
-        SOC = bms.get("SOC")
+        SOC = bms.get("TotalBatteryVoltage")
         return int(SOC) if SOC is not None else None
     
     except Exception:

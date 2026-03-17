@@ -67,6 +67,7 @@ from functions.PaymentPush import PaymentPush
 from functions.EnableChargeBat import set_fm_mos_charging_on
 from functions.EnableDischargeBat import set_fm_mos_discharging_on  
 from functions.GetSOCBattery import get_battery_soc
+from functions.GetBatteryVoltageBat import get_battery_voltage 
 from functions.TransferData import send_battery_details, send_charger_details
 from models.ChargersBatterys import db, Battery, charger
 
@@ -207,9 +208,10 @@ def save_input():
             try:
                 if battery_given:
                     headerBat = AuthHeadBat()
+                    BatVoltage = get_battery_voltage(headerBat, update.battery_number, 15)
                     SOC =get_battery_soc(headerBat, update.battery_number, 15)
-                    if SOC > 70:
-                        return jsonify({"ResponseCode": "1","error": "Couldnt get a valid SOC under 70%/ from the battery"}), 400
+                    if SOC > 70 or BatVoltage >= 8000:
+                        return jsonify({"ResponseCode": "1","error": "Couldnt get a valid SOC under 70%/ and Battery voltage under 8000mV from the battery"}), 400
             except (TypeError, KeyError):
                 print("-----Error during getting SOC of Battery-----", data)
                 return jsonify({"ResponseCode": "1", "error": "Error during getting SOC from Battery."}), 400
