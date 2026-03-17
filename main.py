@@ -211,13 +211,14 @@ def save_input():
                     headerBat = AuthHeadBat()
                     BMSAlarm = get_battery_alarm_bits(headerBat, update.battery_number, 15)
                     if BMSAlarm is None:
+                        print("-----Could not get BMS alarm from battery. Aborting payment-----", data)
                         return jsonify({"ResponseCode": "1", "error": "Could not get BMS alarm from battery... aboarding payment"}), 400
                     cell_overvoltage_alarm = (BMSAlarm & 1024) != 0 if BMSAlarm is not None else False
                     if cell_overvoltage_alarm:
                         print("-----Cell overvoltage alarm at battery detected. Abording payment-----", data)
                         return jsonify({"ResponseCode": "11","error": "Cell overvoltage alarm at battery detected... abording payment"}), 400
             except (TypeError, KeyError):
-                print("-----Cell overvoltage alarm at battery detected. Abording payment-----", data)
+                print("-----Error during getting BMS alarm from Battery-----", e, data)
                 return jsonify({"ResponseCode": "1", "error": "Error during getting BMS alarm from Battery."}), 400
             
             update.touch()
