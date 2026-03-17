@@ -68,6 +68,7 @@ from functions.EnableChargeBat import set_fm_mos_charging_on
 from functions.EnableDischargeBat import set_fm_mos_discharging_on  
 from functions.GetSOCBattery import get_battery_soc
 from functions.GetBatteryVoltageBat import get_battery_voltage 
+from functions.GetAlarmBitBattery import get_battery_alarm_bits
 from functions.TransferData import send_battery_details, send_charger_details
 from models.ChargersBatterys import db, Battery, charger
 
@@ -208,13 +209,16 @@ def save_input():
             try:
                 if battery_given:
                     headerBat = AuthHeadBat()
-                    BatVoltage = get_battery_voltage(headerBat, update.battery_number, 15)
-                    SOC =get_battery_soc(headerBat, update.battery_number, 15)
-                    if SOC > 70 or BatVoltage >= 8000:
-                        return jsonify({"ResponseCode": "1","error": "Couldnt get a valid SOC under 70%/ and Battery voltage under 8000mV from the battery"}), 400
+                    BMSAlarm = get_battery_alarm_bits(headerBat, update.battery_number, 15)
+                    if BMSAlarm is None:
+                        return jsonify({"ResponseCode": "1", "error": "Could not get BMS alarm from battery... aboarding payment"}), 400
+                    cell_overvoltage_alarm = (BMSAlarm & 1024) != 0 if BMSAlarm is not None else False
+                    if cell_overvoltage_alarm:
+                        print("-----Cell overvoltage alarm at battery detected. Abording payment-----", data)
+                        return jsonify({"ResponseCode": "11","error": "Cell overvoltage alarm at battery detected... abording payment"}), 400
             except (TypeError, KeyError):
-                print("-----Error during getting SOC of Battery-----", data)
-                return jsonify({"ResponseCode": "1", "error": "Error during getting SOC from Battery."}), 400
+                print("-----Cell overvoltage alarm at battery detected. Abording payment-----", data)
+                return jsonify({"ResponseCode": "1", "error": "Error during getting BMS alarm from Battery."}), 400
             
             update.touch()
             db.session.add(update)
