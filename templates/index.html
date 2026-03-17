@@ -1,0 +1,322 @@
+    <!-- The layout of this Java script is created with help of bootstrap for designing of the webpage -->
+    <!-- scripts are located at the end of the body -->
+    <!-- Main Script at the end -->
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Charger @eWAKA @ETH</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+        }
+
+        button {
+            margin-bottom: 20px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px 30px;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #InfoBox {
+            margin-top: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            display: inline-block;
+            min-width: 200px;
+        }
+
+        #TextBox {
+            margin-top: 10px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            display: inline-block;
+            min-width: 300px;
+        }
+
+        #InBox {
+            max-width: 750px;
+            min-width: 300px;
+            margin: 0 auto;
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <h1> Charging station @eWAKA @ETH</h1>
+    
+    <!-- create inputboxes with links of getboottrap-->
+<div class="mb-3" id="InBox">
+  <div class="row g-3 align-items-stretch">
+    <!-- Left: Charger + OR + Battery -->
+    <div class="col-12 col-md-6">
+      <div class="d-flex flex-column h-100">
+        <div class="text-start mb-1">Charger number or battery number</div>
+        <input class="form-control" id="TextChargerNumber" placeholder="ex. 2134" oninput="validateInputs()">
+        <input class="form-control" id="TextBatteryNumber" placeholder="ex. 054324757450" oninput="validateInputs()">
+      </div>
+    </div>
+
+    <!-- Right: Phone number centered to match top/bottom spacing -->
+    <div class="col-12 col-md-6">
+      <div class="d-flex flex-column justify-content-center h-100">
+        <div class="text-start mb-1">Phone number</div>
+        <input class="form-control" id="TextPhoneNumber" placeholder="ex. 2547104567110" oninput="validateInputs()">
+      </div>
+    </div>
+  </div>
+</div>
+
+    <!-- Create the button, clicking on it triggers the start function for each type of button-->
+<div>
+  <button id= "PayButton20" class="btn btn-success pay-btn" data-tier="20" disabled onclick="startFlow(this)">
+      20% charge - pay 1 KES for testing
+  </button>
+</div>
+
+<div>
+  <button id= "PayButton40" class="btn btn-success pay-btn" data-tier="40" disabled onclick="startFlow(this)">
+      40% charge - pay 1 KES for testing
+  </button>
+</div>
+
+<div>
+  <button id= "PayButton80" class="btn btn-success pay-btn" data-tier="80" disabled onclick="startFlow(this)">
+      80% charge - pay 1 KES for testing
+  </button>
+</div>
+    <div id="InfoBox">
+        <img id="MangoMan" src="{{ url_for('static', filename='MangoMan.jpeg') }}" alt="Mango" style="display:none; max-width:280px; border-radius:12px; margin-top:10px;">
+        <p id="InfoText">Please fill in the charger- or battery-number and your phone-number. Then select the quantity you want to charge.</p>
+    </div>
+
+    <!-- In this section there are the front end java scripts described -->
+    <!-- sendInputs(): This function sends the input from the frontend to the server in the backend.
+        The backend checks if the entery is valid and sends response back. If entery is valid, the infotext 
+        is changed and the triggerPayment() function called-->
+    <!-- triggerPayment(): Sends payment request to backend. If request is sent successfull the infotext is 
+        changed. In this case the PaymentStatus() function is called -->
+    <!-- PaymentStatus(): This function triggers every two secons a GET request to the backend for receiving
+        the payment status. If the status is changed to success, the infotext get changed and the smsconfirmed()
+        function is called -->
+    <!-- smsconfirmed(): Changes Infotext and triggers smsreceived() function if sms is sent successfull-->
+    <!-- smsreceived(): Changes the Infotext if sms from charger is received. Charging has finished -->
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+            crossorigin="anonymous">
+    </script>
+    <script>
+        function startFlow(btn) {
+            document.querySelectorAll(".pay-btn").forEach(b => b.disabled = true);
+            const tier = btn.dataset.tier; // "20" | "40" | "80"
+            sendInputs(tier);
+        }
+
+        function sendInputs(tier) {
+            const chargerNumber = document.getElementById("TextChargerNumber").value.trim();
+            const batteryNumber = document.getElementById("TextBatteryNumber").value.trim();
+            const phoneNumber = document.getElementById("TextPhoneNumber").value.trim();
+            
+            fetch("/Save/Input", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                charger_number: chargerNumber,
+                battery_number: batteryNumber,
+                phone_number: phoneNumber,
+                tier: tier,
+                rental_days_left: null, // No rental days when using the web UI
+                auto_payment: false
+            })
+            })
+            .then(res => res.json())
+            .then(data => {
+            if (data.ResponseCode === '0') {
+                triggerPayment(chargerNumber, batteryNumber, phoneNumber, tier, rental_days_left);
+            } else {
+                document.getElementById("InfoText").innerText = "Invalid input";
+            }
+            })
+            .catch(err => console.error("Error sending inputs:", err));
+        }
+
+        function triggerPayment(chargerNumber, batteryNumber, phoneNumber, tier, rental_days_left) {
+            fetch("/Payment/Push/Request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                charger_number: chargerNumber,
+                battery_number: batteryNumber,
+                phone_number: phoneNumber,
+                tier: tier,
+                rental_days_left: rental_days_left, // No rental days when using the web UI 
+            })
+            })
+            .then(res => res.json())
+            .then(data => {
+            if (data.ResponseCode === '0'){
+                document.getElementById("InfoText").innerText = "Please accept the payment on your phone";
+                PaymentStatus(chargerNumber, batteryNumber);
+            } else {
+                document.getElementById("InfoText").innerText = "Payment could not be initiated.";
+            }
+            })
+            .catch(err => {
+            document.getElementById("InfoText").innerText = "Error " + err;
+            });
+        }
+        
+function PaymentStatus(chargerNumber, batteryNumber){
+    const MAX_MS = 60_000;
+    const startTs = Date.now();
+
+    const intervalId = setInterval(() => {
+        if (Date.now() - startTs >= MAX_MS) {
+            clearInterval(intervalId);
+            document.getElementById("InfoText").innerText = "Timeout. Please try again.";
+            document.querySelectorAll(".pay-btn").forEach(b => b.disabled = false);
+            return;
+        }
+
+        fetch("/Payment/Status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                charger_number: chargerNumber,
+                battery_number: batteryNumber
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                clearInterval(intervalId);
+                document.getElementById("InfoText").innerText =
+                  "Payment successfull. Please plug in the battery and press the start-button";
+
+                ChargerStatus(chargerNumber, batteryNumber);
+            } else if (data.status === 'failed') {
+                clearInterval(intervalId);
+                document.getElementById("InfoText").innerText = "Payment failed. Please try again.";
+                document.querySelectorAll(".pay-btn").forEach(b => b.disabled = false);
+            }
+        })
+        .catch(err => console.log("Status error:", err));
+    }, 3000);
+}
+
+function ChargerStatus(chargerNumber, batteryNumber){
+    const intervalId = setInterval(() => {
+        fetch("/Charger/Status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                charger_number: chargerNumber,
+                battery_number: batteryNumber
+            })
+        })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'granted') {
+                        document.getElementById("InfoText").innerText = "Thank you. Payment confirmed. Please press the start-button on the charger. Starting process can take few minutes. Do not unplug the battery!";
+                    } else if (data.status === 'loading') {
+                        document.getElementById("InfoText").innerText = "Charging has been granted. Charging will start soon. Do not unplug the battery!";
+                        clearInterval(intervalId);
+                    }
+                })
+                .catch(err => {
+                    console.log("Status error:", err);
+                });
+            }, 3000);
+        }
+
+    </script>
+    
+    <!-- This script indicates a valid entery in the UI.
+     If the input is not valid the input boxes create a red frame
+     Its created with getbootstrap and chatgpt-->
+    <script>
+    const CHARGER_LEN = 4;
+    const PHONE_LEN   = 12;
+    const BATTERY_LEN = 12;
+
+
+function validateInputs() {
+    let charger = document.getElementById("TextChargerNumber");
+    let battery = document.getElementById("TextBatteryNumber");
+    let phone   = document.getElementById("TextPhoneNumber");
+
+    let chargerVal = charger.value.trim();
+    let batteryVal = battery.value.trim();
+    let phoneVal   = phone.value.trim();
+
+    // --- Mango Easter Egg ---
+    const isMango = phoneVal.toLowerCase() === "mango";
+    const infoTextEl = document.getElementById("InfoText");
+    const mangoImgEl = document.getElementById("MangoMan");
+
+    if (isMango) {
+        infoTextEl.style.display = "none";
+        mangoImgEl.style.display = "block";
+    } else {
+        infoTextEl.style.display = "block";
+        mangoImgEl.style.display = "none";
+    }
+
+    let chargerValid = /^[0-9]+$/.test(chargerVal) && chargerVal.length === CHARGER_LEN;
+    let batteryValid = /^[0-9]+$/.test(batteryVal) && batteryVal.length === BATTERY_LEN;
+    let phoneValid   = /^[0-9]+$/.test(phoneVal)   && phoneVal.length === PHONE_LEN;
+
+    let bothFilled = chargerVal.length > 0 && batteryVal.length > 0;
+
+    setValidity(charger, chargerVal.length === 0 ? null : chargerValid);
+    setValidity(battery, batteryVal.length === 0 ? null : batteryValid);
+    setValidity(phone,   phoneVal.length   === 0 ? null : phoneValid);
+
+    let overallValid =
+        phoneValid &&
+        !bothFilled &&
+        (chargerValid || batteryValid);
+
+    document.getElementById("PayButton20").disabled = !overallValid;
+    document.getElementById("PayButton40").disabled = !overallValid;
+    document.getElementById("PayButton80").disabled = !overallValid;
+}
+
+function setValidity(input, ok) {
+    if (ok === null) {
+        input.classList.remove("is-valid");
+        input.classList.remove("is-invalid");
+        return;
+    }
+    input.classList.toggle("is-invalid", !ok);
+    input.classList.toggle("is-valid", ok);
+}
+    </script>
+
+</body>
+</html>
