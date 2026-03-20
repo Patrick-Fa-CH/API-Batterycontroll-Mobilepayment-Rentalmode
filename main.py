@@ -33,7 +33,7 @@ curl -k -X POST https://charge-ewaka.com/Save/Input -H "Content-Type: applicatio
 -------------------------------------------------------------------------------"""
 
 """ ---Commands for SQLlite database (after sqlite3 db.db activated):----------
- cd /home/ubuntu/app/instance
+ cd /home/ubuntu/app_public/instance
  sqlite3 db.db
  
  .header on
@@ -47,6 +47,7 @@ curl -k -X POST https://charge-ewaka.com/Save/Input -H "Content-Type: applicatio
 
 """ -------Update files through git:---------------------------------------------
 cd ~/app
+cd ~/app_public
 git pull   
 sudo systemctl restart gunicorn
 sudo systemctl restart soc-watcher
@@ -212,14 +213,14 @@ def save_input():
                     BMSAlarm = get_battery_alarm_bits(headerBat, update.battery_number, 15)
                     if BMSAlarm is None:
                         print("-----Could not get BMS alarm from battery. Aborting payment-----", data)
-                        return jsonify({"ResponseCode": "1", "error": "Could not get BMS alarm from battery... aboarding payment"}), 400
+                        return jsonify({"ResponseCode": "1", "error": "Could not get alarm status from battery... aboarding payment"}), 400
                     cell_overvoltage_alarm = (BMSAlarm & 1024) != 0 if BMSAlarm is not None else False
                     if cell_overvoltage_alarm:
                         print("-----Cell overvoltage alarm at battery detected. Abording payment-----", data)
-                        return jsonify({"ResponseCode": "11","error": "Cell overvoltage alarm at battery detected... abording payment"}), 400
+                        return jsonify({"ResponseCode": "11","error": "Cell overvoltage detected... discharge before retrying"}), 400
             except (TypeError, KeyError):
                 print("-----Error during getting BMS alarm from Battery-----", e, data)
-                return jsonify({"ResponseCode": "1", "error": "Error during getting BMS alarm from Battery."}), 400
+                return jsonify({"ResponseCode": "1", "error": "Error during getting alarm status from battery."}), 400
             
             update.touch()
             db.session.add(update)

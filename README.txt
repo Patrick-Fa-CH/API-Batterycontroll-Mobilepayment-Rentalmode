@@ -5,38 +5,71 @@ faepatr@gmail.com
 ------------------------------------------------
 
 ------General Information:--------------------------------------------------------------------------------------
-I tried to keep the code as simple as possible and equip it with comments. It really make sense
-to go into the files and read the comments first. To start the project run the main.py file.
-Have a look on the frontend templates/index.html file and on the functions.
+This project implements a backend system for controlling battery charging in combination with mobile payments. 
+It connects a web interface, the Daraja (M-Pesa) API and a battery management system (BMS) through a battery API. 
+The goal is to allow charging only after successful payment and only if the battery is in a safe state. 
+The code is intentionally kept simple and commented, so it is recommended to go through the files and read the comments. 
+To start the project, run main.py.
 
-------This Python project can be split in the following process:-------------------------------------------------
+------System Workflow:------------------------------------------------------------------------------------------
+1. The user visits the webpage https://www.charge-ewake.com
+2. The user enters a charger or battery number together with a phone number
+3. The selected charging option (tier or rental) is sent from the frontend to the backend
+4. A payment request is triggered via the Daraja API and sent to the user’s phone
+5. After a successful payment callback, the payment status is stored in the SQL database
+5.1 If a smart battery is used it is directly activated through the battery API.
+6. The charger sends a POST request to the server to request the charging status
+7. If payment is confirmed and conditions are safe, charging is enabled and current can flow
 
-0. Visit the page https://www.charge-ewake.com
-1. Put in the charger number and the phone number in the UI
-2. Select amount to charge to send all the information from the frontend to the backend
-3. User gets payment request on phone-number through Daraja API
-4. After successfull Callback from API, payment status is stored in SQL database
-5. Start button on charger is pressed and charger sends POST request to server to get charging status
-6. After receiving charging status granted, charger open gate and allows charging current to flow
+------Project Structure:----------------------------------------------------------------------------------------
+The main application logic is implemented in main.py, which handles requests and controls the overall process. 
+The folder functions/ contains all API interactions and control logic such as payment handling, battery 
+communication and enabling or disabling charging. Database models are defined in models/, while the frontend 
+interface is located in templates/ and static/. The instance/ folder contains local data such as the database 
+and is not part of the version-controlled code. SOC_Watcher.py runs as a background process and continuously 
+monitors battery usage and limits.
 
--------Tools:----------------------------------------------------------------------------------------------------
-As in any project it is recommended to run this project in an virtual environement. For testing on local host, 
-the webframework FLASK is used. For accessing online through https, NGROK is used to create a tunnel to the internet.
-This is needed to receive callbacks from APIs. For the payment process the daraja-API is use. 
-Later a VPS from Exoscale (CH) was set up. More information about the Ports, Proxy ect are in the main.py file
+------Tools:----------------------------------------------------------------------------------------------------
+The project is written in Python using the Flask web framework and uses SQLAlchemy for database handling. 
+Mobile payments are processed via the Daraja API. For local testing, Ngrok is used to expose the server to the 
+internet and receive API callbacks. In production, the system runs on a VPS using Gunicorn and systemd services. 
+It is recommended to use a virtual environment and store sensitive data such as API keys in a .env file.
 
 ------File structure:-------------------------------------------------------------------------------------------
-    
-    ├── README.md
-    ├── main.py                     (used to process POST & GET requests from website and call functions)
-    │   └── README.md
-    ├── templates
-    │   └── index.htm               (creates html website and sends POST requests to main.py)
-    ├── functions
-    │   ├── __init.py__
-    │   ├── Authentification.py     (creates access token and is used for all daraja APIs)
-    │   └── PaymentPush.py          (sends payment request to daraja API server)
-    │
-    ├── OldScripts                  (experiments)
-    ├── .venv                       (virtual environement)
-    ├── .ideas
+│
+├── functions/
+│   ├── __pycache__/
+│   ├── __init__.py
+│   ├── Authentification.py
+│   ├── AuthentificationBattery.py
+│   ├── DisableChargeBat.py
+│   ├── DisableDischargeBat.py
+│   ├── EnableChargeBat.py
+│   ├── EnableDischargeBat.py
+│   ├── GetAlarmBitBattery.py
+│   ├── GetBatteryVoltageBat.py
+│   ├── GetSOCBattery.py
+│   ├── PaymentPush.py
+│   └── TransferData.py
+│
+├── instance/                  <--------------is generated locally / not versioned
+│   └── db.db
+│
+├── models/
+│   └── ChargersBatterys.py
+│
+├── OldScripts/
+│
+├── static/
+│
+├── templates/
+│   └── index.html
+│
+├── .env                   <--------------not in the repository (sensitive credentials)
+├── .env.example
+├── .gitattributes
+├── .gitignore
+├── main.py
+├── README.txt
+├── requirements.txt
+└── SOC_Watcher.py
