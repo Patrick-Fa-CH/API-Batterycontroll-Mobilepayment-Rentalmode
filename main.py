@@ -13,23 +13,27 @@
 ### The VPS listenes on port 80 and 443. Port 80 is for HTTP (for charger SIMmodule) and port 443 is for HTTPS ###
 
 ### ----USEFUL COMMANDS FOR VPS INTERACTION------------------------------------------------------------- ###
-### ssh ubuntu@159.100.252.158  --- SSH connection to VPS (First command to access VPS, SSH key is needed, ask developer for access)
-### ssh ubuntu@139.59.159.158 --- SSH connection to VPS of eWAKA (First command to access VPS, integration of pub SSH key is needed, ask Leonard)
+### ssh -i C:\Users\faepa\.ssh\id_ed25519 root@139.59.159.158 --- SSH connection to VPS of eWAKA (First command to access VPS, integration of pub SSH key is needed, ask Leonard)
+### ls /home/ubuntu --- display folder if login with root@....
+### ssh ubuntu@159.100.252.158  --- SSH connection to private VPS (First command to access VPS, SSH key is needed, ask developer for access)
 ### cd ~/app --- Go to app folder
 ### ls --- List files in folder
-### cd /home/ubuntu/app/instance --- Go to instance folder, where the SQL database is stored
+### cd /home/ubuntu/app_public/instance --- Go to instance folder, where the SQL database is stored
 ### sqlite3 db.db --- Access SQLlite database, command only works in instance folder, where the database is stored
 ### sudo journalctl -u gunicorn -f --- Access logs of Gunicorn and see Flask routes)
-### sudo tail -f /var/log/nginx/access.log --- Access logs of Nginx and see server requests)
 ### sudo nano /etc/nginx/sites-available/charger --- Edit Nginx config file
 ### sudo nano /etc/systemd/system/gunicorn.service --- Edit Gunicorn service file
-### sudo systemctl status gunicorn --- Cheching if Gunicorn is running 
+### sudo nano /etc/systemd/system/soc-watcher.service --- Edit Gunicorn service file
+### systemctl list-units --type=service --state=running --- check all running services
+### sudo systemctl status gunicorn --no-pager --- Cheching if Gunicorn is running 
+### sudo systemctl status nginx --no-pager --- Cheching if nginx is running 
+### sudo systemctl status soc-watcher --no-pager
 ### sudo systemctl daemon-reload --- Reload Gunicorn after changes in settings 
-### sudo systemctl reload nginx --- Reload Nginx after changes in code
+### sudo systemctl reload nginx  --- Reload Nginx after changes in code
 ### sudo ss -lntp --- Check if ports 80 and 443 are listening
 """----Simulation of input from frontend in cmd---------------------------------------
-curl -k -X POST https://charge-ewaka.com/Save/Input -H "Content-Type: application/json" -d "{\"charger_number\":\"\",\"battery_number\":\"051111111111\",\"phone_number\":\"254119456993\",\"tier\":\"\",\"rental_days\":\"2\"}"
-curl -k -X POST https://charge-ewaka.com/Save/Input -H "Content-Type: application/json" -d "{\"charger_number\":\"1111\",\"battery_number\":\"\",\"phone_number\":\"254119456993\",\"tier\":\"20\",\"rental_days\":\"\"}"
+curl -k -X POST https://charging.ewaka.tech/Save/Input -H "Content-Type: application/json" -d "{\"charger_number\":\"\",\"battery_number\":\"051111111111\",\"phone_number\":\"254119456993\",\"tier\":\"\",\"rental_days\":\"2\"}"
+curl -k -X POST https://charging.ewaka.tech/Save/Input -H "Content-Type: application/json" -d "{\"charger_number\":\"1111\",\"battery_number\":\"\",\"phone_number\":\"254119456993\",\"tier\":\"20\",\"rental_days\":\"\"}"
 -------------------------------------------------------------------------------"""
 
 """ ---Commands for SQLlite database (after sqlite3 db.db activated):----------
@@ -46,7 +50,6 @@ curl -k -X POST https://charge-ewaka.com/Save/Input -H "Content-Type: applicatio
     -----------------------------------------------------------------------------"""
 
 """ -------Update files through git:---------------------------------------------
-cd ~/app
 cd ~/app_public
 git pull   
 sudo systemctl restart gunicorn
