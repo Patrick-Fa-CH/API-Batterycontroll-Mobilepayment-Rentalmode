@@ -22,7 +22,6 @@
 ### sqlite3 db.db --- Access SQLlite database, command only works in instance folder, where the database is stored
 ### sudo journalctl -u gunicorn -f --- Access logs of Gunicorn and see Flask routes)
 ### sudo nano /etc/nginx/sites-available/charger --- Edit Nginx config file
-### sudo nano /etc/systemd/system/gunicorn.service --- Edit Gunicorn service file
 ### sudo nano /etc/systemd/system/soc-watcher.service --- Edit Gunicorn service file
 ### systemctl list-units --type=service --state=running --- check all running services
 ### sudo systemctl status gunicorn --no-pager --- Cheching if Gunicorn is running 
@@ -48,9 +47,14 @@ curl -k -X POST https://charging.ewaka.tech/Save/Input -H "Content-Type: applica
  .tables --- List tables in database
  .schema chargers --- Show structure of chargers table
     -----------------------------------------------------------------------------"""
-
-""" -------Update files through git:---------------------------------------------
+""" -------Update files through git (private server):---------------------------------------------
 cd ~/app_public
+git pull   
+sudo systemctl restart gunicorn
+sudo systemctl restart soc-watcher
+    -----------------------------------------------------------------------------"""
+""" -------Update files through git (eWAKA server):---------------------------------------------
+cd /home/ubuntu/app_public
 git pull   
 sudo systemctl restart gunicorn
 sudo systemctl restart soc-watcher

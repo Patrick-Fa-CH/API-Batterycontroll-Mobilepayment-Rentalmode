@@ -106,7 +106,7 @@ def run():
                             b.updated_at = datetime.utcnow()
                             db.session.add(b)
                             db.session.commit()
-                            send_battery_details(b.battery_number) # Send update to dashboard
+                            send_battery_details(b.battery_number) # Send updat e to dashboard
                         else:
                             if b.charging_status != "granted":#re-enable if somehow error occured
                                 if set_fm_mos_charging_on(header, b.battery_number): # Re-enable charging
@@ -122,7 +122,7 @@ def run():
                         print(f"Watcher battery error: battery={b.battery_number}, phone={b.phone_number}, error={e}")
                         db.session.rollback()
                         continue
-                                
+
         except Exception as e:
             print("Watcher loop error:", e)
 
