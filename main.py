@@ -270,7 +270,11 @@ def payment_push():
             return jsonify({"ResponseCode": "1", "error": "Input error: Missing charger_number/battery_number"}), 400
 
         header = AuthHead() #get tooken for API access and create header for API request
-        SMSPushResponse = PaymentPush(header, phone_number, tier, rental_days_left)
+        if battery_given:
+            SMSPushResponse = PaymentPush(header, phone_number, battery_number, tier, rental_days_left)
+        else:
+            SMSPushResponse = PaymentPush(header, phone_number, charger_number, tier, rental_days_left)
+            
         ResponseCode = str(SMSPushResponse.get("ResponseCode", ""))
         CheckoutRequestID = str(SMSPushResponse.get("CheckoutRequestID", ""))
         

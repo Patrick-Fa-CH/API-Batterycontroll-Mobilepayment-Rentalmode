@@ -14,7 +14,7 @@ import datetime
 import requests
 import os
 
-def PaymentPush(head, phone_number, tier, rental_days_left):
+def PaymentPush(head, phone_number, mode_number, tier, rental_days_left):
     
     MPESA_SHORTCODE = os.environ.get("MPESA_SHORTCODE")
     MPESA_PASSKEY = os.environ.get("MPESA_PASSKEY")
@@ -84,7 +84,7 @@ def PaymentPush(head, phone_number, tier, rental_days_left):
     "TransactionType": "CustomerPayBillOnline",
     "PhoneNumber": f"{phone_number}",
     "TransactionDesc": "Charging",
-    "AccountReference": f"C-{phone_number}",
+    "AccountReference": f"C-{mode_number}",
     "CallBackURL": MPESA_CALLBACK_URL #request.host_url.rstrip("/") + "/mpesa/callback"
     }
 
