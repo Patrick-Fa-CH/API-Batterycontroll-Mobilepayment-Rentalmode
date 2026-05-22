@@ -18,6 +18,7 @@
 ### ssh ubuntu@159.100.252.158  --- SSH connection to private VPS (First command to access VPS, SSH key is needed, ask developer for access)
 ### cd ~/app --- Go to app folder
 ### ls --- List files in folder
+### nano env --- Open environment varibles
 ### cd /home/ubuntu/app_public/instance --- Go to instance folder, where the SQL database is stored
 ### sqlite3 db.db --- Access SQLlite database, command only works in instance folder, where the database is stored
 ### sudo journalctl -u gunicorn -f --- Access logs of Gunicorn and see Flask routes)
