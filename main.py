@@ -39,7 +39,8 @@ curl -k -X POST https://charging.ewaka.tech/Save/Input -H "Content-Type: applica
 """ ---Commands for SQLlite database (after sqlite3 db.db activated):----------
  cd /home/ubuntu/app_public/instance
  sqlite3 db.db
- 
+ SELECT * FROM motorbike_batteries;
+
  .header on
  .mode column
  SELECT * FROM chargers; --- Show content of chargers table (after .tables)
@@ -178,7 +179,6 @@ def save_input():
             update.phone_number = phone_number #update dataset if charger exists
             update.tier = tier
             update.payment_status = "waiting"
-            update.charging_status = "prohibited"
             update.touch()
             db.session.add(update)
             db.session.commit()
@@ -340,6 +340,7 @@ def mpesa_callback():
                 update_battery.payment_status  = "success"
                 update_battery.last_payment_at = datetime.utcnow()
                 update_battery.used_credit = 0
+                update_battery.charging_status = "granted"
                 update_battery.touch()
                 db.session.add(update_battery)
                 db.session.commit()
