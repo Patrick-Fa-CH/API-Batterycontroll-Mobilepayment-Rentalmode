@@ -49,7 +49,8 @@ def run():
                         b.updated_at = datetime.utcnow()
                         db.session.add(b)
                         db.session.commit()
-
+                        send_battery_details(b.battery_number) # Send update to dashboard  
+                                              
                         if b.rental_days_left is not None and b.rental_days_left > 0 and b.day_expires_at is not None:
                             if datetime.utcnow() >= b.day_expires_at: # Check if rental day is expired
                                 expired_days = ((datetime.utcnow() - b.day_expires_at).days) + 1 # Reduce rental days
