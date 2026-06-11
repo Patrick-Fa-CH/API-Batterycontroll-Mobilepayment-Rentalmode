@@ -196,6 +196,10 @@ def save_input():
                 return jsonify({"ResponseCode": "1", "error": f"Invalid batterynumber. Must be a {battery_number_length}-digit number"}), 400
 
             update = Battery.query.get(battery_number)
+            if update is not None and update.charging_status == "failed":
+                print("-----Failed charging status at battery detected. Avoid double payment. Abording payment-----", data)
+                return jsonify({"ResponseCode": "1", "error": "Session already in progress. Wait for battery activation..."}), 400
+            
             if update is None:
                 update = Battery(
                     phone_number=phone_number,
@@ -215,7 +219,6 @@ def save_input():
             update.tier = tier
             update.rental_days_left = rental_days_left
             update.payment_status = "waiting"
-            update.charging_status = "prohibited"
             try:
                 if battery_given:
                     headerBat = AuthHeadBat()
@@ -227,7 +230,7 @@ def save_input():
                     if cell_overvoltage_alarm:
                         print("-----Cell overvoltage alarm at battery detected. Abording payment-----", data)
                         return jsonify({"ResponseCode": "11","error": "Cell overvoltage detected... discharge before retrying"}), 400
-            except (TypeError, KeyError):
+            except (TypeError, KeyError) as e:
                 print("-----Error during getting BMS alarm from Battery-----", e, data)
                 return jsonify({"ResponseCode": "1", "error": "Error during getting alarm status from battery."}), 400
             
