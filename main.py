@@ -42,6 +42,10 @@ curl -k -X POST https://charging.ewaka.tech/Save/Input -H "Content-Type: applica
  sqlite3 db.db
  SELECT * FROM motorbike_batteries;
 
+UPDATE motorbike_batteries
+SET charging_status = 'failed'
+WHERE battery_number = '000000000000';
+
  .header on
  .mode column
  SELECT * FROM chargers; --- Show content of chargers table (after .tables)
@@ -299,9 +303,9 @@ def payment_push():
         db.session.commit()
 
         if ResponseCode == "0":
-            print("-----Server send payment request successfull-----", "mode:", ("charger" if charger_given else "battery"))
+            print(f"-----Server send payment request successfull----- {CheckoutRequestID}", "mode:", ("charger" if charger_given else "battery"))
         else:
-            print("-----Server could not send payment request-----")
+            print(f"-----Server could not send payment request----- {CheckoutRequestID}")
             print(SMSPushResponse)
 
         return jsonify(SMSPushResponse)
@@ -348,7 +352,7 @@ def mpesa_callback():
                 update_battery.touch()
                 db.session.add(update_battery)
                 db.session.commit()
-                print("-----Server received and stored payment confirmation (BATTERY)-----")
+                print(f"-----Server received and stored payment confirmation (BATTERY)----- {CheckoutRequestID}")
 
                 try:
                     header = AuthHeadBat() #get token for battery API access
