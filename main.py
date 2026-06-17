@@ -198,7 +198,11 @@ def save_input():
         else:
             if not battery_valid:
                 return jsonify({"ResponseCode": "1", "error": f"Invalid batterynumber. Must be a {battery_number_length}-digit number"}), 400
-
+            
+            if update is not None and update.payment_status == "waiting" and update.checkout_request_id:
+                print("-----Active payment session detected. Avoid double payment. Aborting payment-----", data)
+                return jsonify({"ResponseCode": "1", "error": "Payment request already in progress. Please wait for confirmation."}), 400
+            
             update = Battery.query.get(battery_number)
             if update is not None and update.charging_status == "failed":
                 print("-----Failed charging status at battery detected. Avoid double payment. Abording payment-----", data)
@@ -297,13 +301,13 @@ def payment_push():
             if update is None:
                 return jsonify({"ResponseCode": "1", "error": "unknown battery_number"}), 404
 
-        update.checkout_request_id = CheckoutRequestID
-        update.touch()
-        db.session.add(update)
-        db.session.commit()
-
         if ResponseCode == "0":
+            update.checkout_request_id = CheckoutRequestID
+            update.touch()
+            db.session.add(update)
+            db.session.commit()
             print(f"-----Server send payment request successfull----- {CheckoutRequestID}", "mode:", ("charger" if charger_given else "battery"))
+
         else:
             print(f"-----Server could not send payment request----- {CheckoutRequestID}")
             print(SMSPushResponse)
