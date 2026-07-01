@@ -23,7 +23,7 @@
 ### sqlite3 db.db --- Access SQLlite database, command only works in instance folder, where the database is stored
 ### sudo journalctl -u gunicorn -f --- Access logs of Gunicorn and see Flask routes)
 ### sudo systemctl status soc-watcher --no-pager
-### sudo journalctl -u gunicorn --since "12 hours ago"
+### sudo journalctl -u gunicorn --since "24 hours ago"
 ### sudo nano /etc/nginx/sites-available/charger --- Edit Nginx config file
 ### sudo nano /etc/systemd/system/soc-watcher.service --- Edit Gunicorn service file
 ### systemctl list-units --type=service --state=running --- check all running services

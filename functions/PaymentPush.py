@@ -62,7 +62,9 @@ def PaymentPush(head, phone_number, mode_number, tier, rental_days_left):
     "50": 140,
     "70": 190, #232
     "80": 500, #232
-    "100": 280 #232
+    "100": 280, #232
+    "700": 1960,#232 
+    "3000": 8400 #232 
     }
     if rental_days_left is not None and rental_days_left > 0:
         Cost = rental_days_left * 1 #290
