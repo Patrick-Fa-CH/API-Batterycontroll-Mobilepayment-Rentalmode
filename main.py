@@ -22,13 +22,13 @@
 ### cd /home/ubuntu/app_public/instance --- Go to instance folder, where the SQL database is stored
 ### sqlite3 db.db --- Access SQLlite database, command only works in instance folder, where the database is stored
 ### sudo journalctl -u gunicorn -f --- Access logs of Gunicorn and see Flask routes)
+### sudo systemctl status soc-watcher --no-pager
 ### sudo journalctl -u gunicorn --since "12 hours ago"
 ### sudo nano /etc/nginx/sites-available/charger --- Edit Nginx config file
 ### sudo nano /etc/systemd/system/soc-watcher.service --- Edit Gunicorn service file
 ### systemctl list-units --type=service --state=running --- check all running services
 ### sudo systemctl status gunicorn --no-pager --- Cheching if Gunicorn is running 
 ### sudo systemctl status nginx --no-pager --- Cheching if nginx is running 
-### sudo systemctl status soc-watcher --no-pager
 ### sudo systemctl daemon-reload --- Reload Gunicorn after changes in settings 
 ### sudo systemctl reload nginx  --- Reload Nginx after changes in code
 ### sudo ss -lntp --- Check if ports 80 and 443 are listening
@@ -43,8 +43,11 @@ curl -k -X POST https://charging.ewaka.tech/Save/Input -H "Content-Type: applica
  SELECT * FROM motorbike_batteries;
 
 UPDATE motorbike_batteries
-SET charging_status = 'failed'
-WHERE battery_number = '000000000000';
+SET
+    payment_status = 'success',
+    charging_status = 'granted',
+    used_credit = 0
+WHERE battery_number = '052253207418';
 
  .header on
  .mode column
@@ -201,9 +204,17 @@ def save_input():
             
             update = Battery.query.get(battery_number)
 
-            if update is not None and update.payment_status == "waiting" and update.checkout_request_id:
-                print("-----Active payment session detected. Avoid double payment. Aborting payment-----", data)
-                return jsonify({"ResponseCode": "1", "error": "Payment request already in progress. Please wait for confirmation."}), 400
+            if update is not None and update.payment_status == "waiting":
+                if update.updated_at and update.updated_at > datetime.utcnow() - timedelta(minutes=10):
+                    print("-----Active payment session detected. Avoid double payment. Aborting payment-----", data)
+                    return jsonify({"ResponseCode": "1", "error": "Payment request already in progress. Please wait for confirmation."}), 400
+                else:
+                    print("-----Old waiting payment session expired. Resetting payment status.-----", data)
+                    update.payment_status = "failed"
+                    update.checkout_request_id = None
+                    update.touch()
+                    db.session.add(update)
+                    db.session.commit()
             
             if update is not None and update.charging_status == "failed":
                 print("-----Failed charging status at battery detected. Avoid double payment. Abording payment-----", data)
@@ -354,6 +365,10 @@ def mpesa_callback():
             #if no matching checkoutID in charger database, search in battery database and update DB and activate Battery
             update_battery = Battery.query.filter_by(checkout_request_id=CheckoutRequestID).first()
             if update_battery is not None:
+                if update_battery.payment_status == "success" and update_battery.charging_status == "granted":
+                    print("-----Duplicate payment callback ignored-----", CheckoutRequestID)
+                    return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"})
+                    
                 update_battery.payment_status  = "success"
                 update_battery.last_payment_at = datetime.utcnow()
                 update_battery.used_credit = 0

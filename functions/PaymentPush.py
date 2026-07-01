@@ -89,7 +89,7 @@ def PaymentPush(head, phone_number, mode_number, tier, rental_days_left):
     "CallBackURL": MPESA_CALLBACK_URL #request.host_url.rstrip("/") + "/mpesa/callback"
     }
 
-    response = requests.post(url, json=payload, headers=head)
+    response = requests.post(url, json=payload, headers=head, timeout=(5, 15))
     #print(f"SMS-Push informations are: {response.json()}")
     return response.json()
 
