@@ -3,10 +3,12 @@
 ### for that battery and reset the SOC_limit to prevent further charging until manually re-enabled. 
 ### The script runs indefinitely and should be run direct on VPS, polling every 2 minutes.
 
+from email import header
 import time
 from datetime import datetime, timedelta
 from main import app, db, Battery
 
+from sqlalchemy import or_
 from functions.AuthentificationBattery import AuthHeadBat
 from functions.GetSOCBattery import get_battery_soc
 from functions.DisableChargeBat import set_fm_mos_charging_off
@@ -24,7 +26,8 @@ def run():
     while True:
         try:
             with app.app_context():
-                batteries = Battery.query.filter(Battery.charging_status.in_(["granted", "failed"])).all()
+                batteries = Battery.query.filter(or_(Battery.charging_status.in_(["granted", "failed"]),
+                                                     Battery.rental_days_left > 0)).all()
 
                 if not batteries:
                     time.sleep(POLL_SECONDS)
@@ -32,44 +35,29 @@ def run():
 
                 header = AuthHeadBat()
                 for b in batteries:
-                    try: 
-                        soc = get_battery_soc(header, b.battery_number)
-                        if soc is None:     # If API returns no SOC, skip this battery for now
-                            b.updated_at = datetime.utcnow()
-                            db.session.add(b)
-                            db.session.commit()
-                            send_battery_details(b.battery_number) # Send update to dashboard
-                            continue
-                        ChargedAmount = int(soc) - int(b.SOC) if b.SOC is not None else 0 # Calculate how much SOC has been charged since last check
-                        if ChargedAmount < 0: # If SOC decreased, it means battery was used
-                            ChargedAmount = 0 # In this case, we don't want to count negative charging, so we set it to 0
-                        b.used_credit = int(b.used_credit or 0) + ChargedAmount # Update used credit
-                        b.SOC = int(soc)                     # Store the latest SOC in DB
-                        b.number_of_cycles = (b.number_of_cycles or 0.0) + (ChargedAmount / 100.0)
-                        b.updated_at = datetime.utcnow()
-                        db.session.add(b)
-                        db.session.commit()
-                        send_battery_details(b.battery_number) # Send update to dashboard  
+                    try:   
                                               
                         if b.rental_days_left is not None and b.rental_days_left > 0 and b.day_expires_at is not None:
                             if datetime.utcnow() >= b.day_expires_at: # Check if rental day is expired
                                 expired_days = ((datetime.utcnow() - b.day_expires_at).days) + 1 # Reduce rental days
                                 remaining_days = b.rental_days_left - expired_days
                                 if remaining_days <= 0: # If rental expired, disable charging
-                                    b.rental_days_left = 0
-                                    b.used_credit = 0
-                                    b.day_expires_at = None
 
                                     if set_fm_mos_charging_off(header, b.battery_number):    # Close gate / disable charging
-                                        b.charging_status = "prohibited"
                                         print("-----Charging successfully disabled due to rental expiration-----", b.battery_number)
+                                        b.rental_days_left = 0
+                                        b.day_expires_at = None
+                                        b.used_credit = 0
+                                        b.charging_status = "prohibited"
                                     else:
                                         print("-----Failed to disable charging through API after rental expiration-----", b.battery_number)
+                                        b.charging_status = "failed"
                                     if set_fm_mos_discharging_off(header, b.battery_number):    # Close gate / disable discharging
-                                        b.discharging_status = "prohibited"
                                         print("-----Discharging successfully disabled due to rental expiration-----", b.battery_number)
+                                        b.discharging_status = "prohibited"
                                     else:
                                         print("-----Failed to disable discharging through API after rental expiration-----", b.battery_number)
+                                        b.discharging_status = "failed"
                                 else: # If not expired, update remaining days and reset daily credit
                                     b.rental_days_left = remaining_days
                                     b.used_credit = 0
@@ -119,6 +107,25 @@ def run():
                                 db.session.add(b)
                                 db.session.commit()
                                 send_battery_details(b.battery_number) # Send update to dashboard
+
+                        soc = get_battery_soc(header, b.battery_number)
+                        if soc is None:     # If API returns no SOC, skip this battery for now
+                            b.updated_at = datetime.utcnow()
+                            db.session.add(b)
+                            db.session.commit()
+                            send_battery_details(b.battery_number) # Send update to dashboard
+                            continue
+                        ChargedAmount = int(soc) - int(b.SOC) if b.SOC is not None else 0 # Calculate how much SOC has been charged since last check
+                        if ChargedAmount < 0: # If SOC decreased, it means battery was used
+                            ChargedAmount = 0 # In this case, we don't want to count negative charging, so we set it to 0
+                        b.used_credit = int(b.used_credit or 0) + ChargedAmount # Update used credit
+                        b.SOC = int(soc)                     # Store the latest SOC in DB
+                        b.number_of_cycles = (b.number_of_cycles or 0.0) + (ChargedAmount / 100.0)
+                        b.updated_at = datetime.utcnow()
+                        db.session.add(b)
+                        db.session.commit()
+                        send_battery_details(b.battery_number) # Send update to dashboard
+
                     except Exception as e:
                         print(f"Watcher battery error: battery={b.battery_number}, phone={b.phone_number}, error={e}")
                         db.session.rollback()

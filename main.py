@@ -70,6 +70,8 @@ sudo systemctl restart gunicorn
 sudo systemctl restart soc-watcher
     -----------------------------------------------------------------------------"""
 
+from email import header
+
 import flask 
 import json
 import os
@@ -113,6 +115,38 @@ db.init_app(app)
 with app.app_context(): #creating the databes
     db.create_all()
 
+
+def add_confirmed_rental_days(battery, purchased_days):
+    now = datetime.utcnow()
+    remaining_days = int(battery.rental_days_left or 0)
+    expires_at = battery.day_expires_at
+
+    # Falls der Watcher einen bereits überschrittenen Tageswechsel
+    # noch nicht verarbeitet hat, wird dies hier nachgeholt.
+    if remaining_days > 0 and expires_at is not None and now >= expires_at:
+        expired_days = ((now - expires_at).days) + 1
+        remaining_days = max(0, remaining_days - expired_days)
+
+        if remaining_days > 0:
+            expires_at = expires_at + timedelta(days=expired_days)
+        else:
+            expires_at = None
+
+    rental_was_active = remaining_days > 0 and expires_at is not None
+
+    if rental_was_active:
+        # Neue Tage werden an eine laufende Miete angehängt.
+        battery.rental_days_left = remaining_days + purchased_days
+        battery.day_expires_at = expires_at
+    else:
+        # Eine neue Miete beginnt mit einem frischen 24-Stunden-Zeitraum.
+        battery.rental_days_left = purchased_days
+        battery.day_expires_at = now + timedelta(days=1)
+        battery.used_credit = 0
+
+    return rental_was_active
+
+
 #standart route for website
 @app.route('/')
 def index():
@@ -129,7 +163,7 @@ def save_input():
         battery_number = (data.get("battery_number") or "").strip()
         phone_number   = (data.get("phone_number") or "").strip()
         tier           = (data.get("tier") or "").strip()
-        rental_days_raw = (data.get("rental_days") or "").strip()
+        rental_days_raw = str(data.get("rental_days") or "").strip()
         rental_days_left = int(rental_days_raw) if rental_days_raw.isdigit() else 0
 
         print("-----Received information from frontend: ", 
@@ -226,7 +260,7 @@ def save_input():
                     battery_number = battery_number,
                     payment_status="waiting",
                     tier=tier,
-                    rental_days_left=rental_days_left,
+                    rental_days_left=0,
                     day_expires_at= None,
                     charging_status="prohibited",
                     discharging_status = "granted",
@@ -237,7 +271,6 @@ def save_input():
                 )
             update.phone_number = phone_number
             update.tier = tier
-            update.rental_days_left = rental_days_left
             update.payment_status = "waiting"
             try:
                 if battery_given:
@@ -285,7 +318,7 @@ def payment_push():
         battery_number = (data.get("battery_number") or "").strip()
         phone_number   = (data.get("phone_number") or "").strip()
         tier           = (data.get("tier") or "").strip()
-        rental_days_raw = (data.get("rental_days") or "").strip()
+        rental_days_raw = str(data.get("rental_days") or "").strip()
         rental_days_left = int(rental_days_raw) if rental_days_raw.isdigit() else 0
         charger_given = len(charger_number) > 0
         battery_given = len(battery_number) > 0
@@ -293,7 +326,11 @@ def payment_push():
             return jsonify({"ResponseCode": "1", "error": "Input error: Received charger- and batterynumber"}), 400
         if (not charger_given) and (not battery_given):
             return jsonify({"ResponseCode": "1", "error": "Input error: Missing charger_number/battery_number"}), 400
-
+        if rental_days_left < 0 or rental_days_left > maximum_rental_days:
+            return jsonify({
+                "ResponseCode": "1",
+                "error": f"Invalid rental days. Must be between 1 and {maximum_rental_days}"
+            }), 400
         header = AuthHead() #get tooken for API access and create header for API request
         if battery_given:
             SMSPushResponse = PaymentPush(header, phone_number, battery_number, tier, rental_days_left)
@@ -315,6 +352,8 @@ def payment_push():
 
         if ResponseCode == "0" and CheckoutRequestID:
             update.checkout_request_id = CheckoutRequestID
+            if battery_given and rental_days_left > 0:
+                update.tier = f"RENTAL:{rental_days_left}"
             update.touch()
             db.session.add(update)
             db.session.commit()
@@ -365,29 +404,49 @@ def mpesa_callback():
             #if no matching checkoutID in charger database, search in battery database and update DB and activate Battery
             update_battery = Battery.query.filter_by(checkout_request_id=CheckoutRequestID).first()
             if update_battery is not None:
-                if update_battery.payment_status == "success" and update_battery.charging_status == "granted":
+                previous_charging_status = update_battery.charging_status
+                if update_battery.payment_status == "success":
                     print("-----Duplicate payment callback ignored-----", CheckoutRequestID)
                     return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"})
-                    
+
+                pending_value = str(update_battery.tier or "")
+                purchased_rental_days = 0
+
+                if pending_value.startswith("RENTAL:"):
+                    try:
+                        purchased_rental_days = int(pending_value.split(":", 1)[1])
+                    except (TypeError, ValueError):
+                        purchased_rental_days = 0
+
+                rental_was_active = False
+
+                if purchased_rental_days > 0:
+                    rental_was_active = add_confirmed_rental_days(update_battery, purchased_rental_days)
+                    # Temporären Wert entfernen
+                    update_battery.tier = ""
+                else:
+                    # Normale Tier-Buchung
+                    update_battery.used_credit = 0
+    
                 update_battery.payment_status  = "success"
                 update_battery.last_payment_at = datetime.utcnow()
-                update_battery.used_credit = 0
-                update_battery.charging_status = "granted"
                 update_battery.touch()
                 db.session.add(update_battery)
                 db.session.commit()
                 print(f"-----Server received and stored payment confirmation (BATTERY)----- {CheckoutRequestID}")
 
                 try:
+                    header = None
                     header = AuthHeadBat() #get token for battery API access
-                    if set_fm_mos_charging_on(header, update_battery.battery_number): #activate battery through API
-                        update_battery.charging_status = "granted"
-                        if update_battery.rental_days_left is not None and update_battery.rental_days_left > 0:
-                            update_battery.used_credit = 0
-                            update_battery.day_expires_at = datetime.utcnow() + timedelta(days=1)
-                    else:
-                        update_battery.charging_status = "failed"
-                        print("-----Server failed to enable charging on battery ",update_battery.battery_number," (BATTERY)-----")
+                    if header is not None:
+                        if rental_was_active:
+                            update_battery.charging_status = previous_charging_status
+                        else:
+                            if set_fm_mos_charging_on(header, update_battery.battery_number): #activate battery through API
+                                update_battery.charging_status = "granted"
+                            else:
+                                update_battery.charging_status = "failed"
+                                print("-----Server failed to enable charging on battery ",update_battery.battery_number," (BATTERY)-----")
                 except:
                     update_battery.charging_status = "failed"
                     print("-----Server failed during enabling proxess ",update_battery.battery_number," (BATTERY)-----")
@@ -430,6 +489,8 @@ def mpesa_callback():
             #if no matching checkoutID in charger database, search in battery database and update DB
             update_battery = Battery.query.filter_by(checkout_request_id=CheckoutRequestID).first()
             if update_battery is not None:
+                if str(update_battery.tier or "").startswith("RENTAL:"):
+                    update_battery.tier = ""
                 update_battery.payment_status = "failed"
                 update_battery.touch()
                 db.session.add(update_battery)
