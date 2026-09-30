@@ -1,7 +1,7 @@
 from datetime import timezone
 from zoneinfo import ZoneInfo
 import requests
-from models.ChargersBatterys import Battery, charger
+from models.ChargersBatterys import Battery, charger, BatteryAdditionalData
 import os
 
 def time_to_nairobi_string(dt):
@@ -39,6 +39,7 @@ def send_charger_details(charger_number):
 def send_battery_details(battery_number):
 
     battery_get = Battery.query.get(battery_number)
+    battery_additional_data = BatteryAdditionalData.query.get(battery_number)
     if battery_get is None:
         return None
     battery_body = {
@@ -56,6 +57,8 @@ def send_battery_details(battery_number):
         'number_of_cycles' : battery_get.number_of_cycles, # number of cycles
         'checkout_request_id' : battery_get.checkout_request_id,
         'last_payment_at' : time_to_nairobi_string(battery_get.last_payment_at)    if battery_get.last_payment_at else None,
+        'last_payment_amount': (float(battery_additional_data.last_payment_amount)
+        if battery_additional_data is not None and battery_additional_data.last_payment_amount is not None else None),
         "updated_at": time_to_nairobi_string(battery_get.updated_at)    if battery_get.updated_at else None
         }
     try:

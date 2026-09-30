@@ -35,7 +35,7 @@
 """----Simulation of input from frontend in cmd---------------------------------------
 curl -k -X POST https://charging.ewaka.tech/Save/Input -H "Content-Type: application/json" -d "{\"charger_number\":\"\",\"battery_number\":\"051111111111\",\"phone_number\":\"254119456993\",\"tier\":\"\",\"rental_days\":\"2\"}"
 curl -k -X POST https://charging.ewaka.tech/Save/Input -H "Content-Type: application/json" -d "{\"charger_number\":\"1111\",\"battery_number\":\"\",\"phone_number\":\"254119456993\",\"tier\":\"20\",\"rental_days\":\"\"}"
--------------------------------------------------------------------------------"""
+-------------------------------------------------------------------.exirt------------"""
 
 """ ---Commands for SQLlite database (after sqlite3 db.db activated):----------
  cd /home/ubuntu/app_public/instance
@@ -90,7 +90,7 @@ from functions.GetSOCBattery import get_battery_soc
 from functions.GetBatteryVoltageBat import get_battery_voltage 
 from functions.GetAlarmBitBattery import get_battery_alarm_bits
 from functions.TransferData import send_battery_details, send_charger_details
-from models.ChargersBatterys import db, Battery, charger
+from models.ChargersBatterys import db, Battery, charger, BatteryAdditionalData
 
 
 print("-------------------Start of Master-Thesis ETH Python Script-------------------")
@@ -110,6 +110,7 @@ phone_number_length = int(os.environ.get("PHONE_NUMBER_LENGTH", "12"))
 app = Flask(__name__)
 #Database setup, using SQLAlchemy
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///db.db")
+app.config["SQLALCHEMY_BINDS"] = {"battery_extra": os.environ.get("EXTRA_DATABASE_URL","sqlite:///battery_extra.db")}
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 with app.app_context(): #creating the databes
@@ -146,6 +147,14 @@ def add_confirmed_rental_days(battery, purchased_days):
 
     return rental_was_active
 
+def get_callback_metadata_value(data, requested_name):
+    items = (data.get("Body", {}).get("stkCallback", {}).get("CallbackMetadata", {}).get("Item", []))
+
+    for item in items:
+        if item.get("Name") == requested_name:
+            return item.get("Value")
+
+    return None
 
 #standart route for website
 @app.route('/')
@@ -292,6 +301,36 @@ def save_input():
             db.session.commit()
             print("-----Battery DB updated-----", battery_number, phone_number, tier,rental_days_left)
             
+            # Rental-Zugang direkt aktivieren, ohne Payment Push
+            if rental_given:
+                rental_was_active = add_confirmed_rental_days(update,rental_days_left)
+                update.tier = ""
+                update.payment_status = "success"
+
+                if not rental_was_active:
+                    if set_fm_mos_charging_on(headerBat,update.battery_number):
+                        update.charging_status = "granted"
+                    else:
+                        update.charging_status = "failed"
+
+                update.touch()
+                db.session.add(update)
+                db.session.commit()
+
+                send_battery_details(update.battery_number)
+
+                return jsonify({
+                    "ResponseCode": "0",
+                    "mode": "rental",
+                    "battery_number": update.battery_number,
+                    "rental_days_left": update.rental_days_left,
+                    "day_expires_at": (
+                        update.day_expires_at.isoformat()
+                        if update.day_expires_at is not None
+                        else None
+                    ),
+                    "charging_status": update.charging_status
+                })
 
             auto_payment =data.get("auto_payment", True) #if UI from my API index Web is used, auto_payment is deactivated
             if auto_payment not in [False, "false", "False", "0"]:
@@ -408,6 +447,19 @@ def mpesa_callback():
                 if update_battery.payment_status == "success":
                     print("-----Duplicate payment callback ignored-----", CheckoutRequestID)
                     return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"})
+                
+                # Extract the payment amount from the callback metadata
+                payment_amount = get_callback_metadata_value(data, "Amount")
+
+                if payment_amount is not None:
+                    additional_data = BatteryAdditionalData.query.get(update_battery.battery_number)
+
+                    if additional_data is None:
+                        additional_data = BatteryAdditionalData(battery_number=update_battery.battery_number)
+
+                    additional_data.last_payment_amount = payment_amount
+                    db.session.add(additional_data)
+                    db.session.commit()
 
                 pending_value = str(update_battery.tier or "")
                 purchased_rental_days = 0

@@ -35,7 +35,19 @@ class Battery(db.Model):  #this database is for intern eWAKA use. Not directly r
     checkout_request_id = db.Column(db.String(128), nullable=True, unique=True)
     last_payment_at = db.Column(db.DateTime, nullable=True)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-
     def touch(self):
         self.updated_at = datetime.utcnow()
+class BatteryAdditionalData(db.Model):
+    __bind_key__ = "battery_extra"
+    __tablename__ = "battery_additional_data"
+
+    battery_number = db.Column(db.String(32),primary_key=True)
+
+    last_payment_amount = db.Column(db.Numeric(10, 2),nullable=True)
+    reserve_1 = db.Column(db.Text, nullable=True)
+    reserve_2 = db.Column(db.Text, nullable=True)
+    reserve_3 = db.Column(db.Text, nullable=True)
+    reserve_4 = db.Column(db.Text, nullable=True)
+    reserve_5 = db.Column(db.Text, nullable=True)
+
 
